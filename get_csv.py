@@ -2,80 +2,50 @@ import os
 import csv
 import requests
 import bs4 as bs
+import pandas as pd
+from datetime import datetime,timedelta
 
 def save_csv():
-    curr_list = [["AED","Emirati Dirham"],
-                 ["ARS","Argentine Peso"],
-                 ["AUD","Australian Dollar"],
-                 ["BGN","Bulgarian Lev"],
-                 ["BHD","Bahraini Dinar"],
-                 ["BND","Bruneian Dollar"],
-                 ["BRL","Brazilian Real"],
-                 ["BWP","Botswana Pula"],
-                 ["CAD","Canadian Dollar"],
-                 ["CHF","Swiss Franc"],
-                 ["CLP","Chilean Peso"],
-                 ["CNY","Chinese Yuan Renminbi"],
-                 ["COP","Colombian Peso"],
-                 ["CZK","Czech Koruna"],
-                 ["DKK","Danish Krone"],
-                 ["EUR","Euro"],
-                 ["GBP","British Pound"],
-                 ["HKD","Hong Kong Dollar"],
-                 ["HRK","Croatian Kuna"],
-                 ["HUF","Hungarian Forint"],
-                 ["IDR","Indonesian Rupiah"],
-                 ["ILS","Israeli Shekel"],
-                 ["INR","Indian Rupee"],
-                 ["IRR","Iranian Rial"],
-                 ["ISK","Icelandic Krona"],
-                 ["JPY","Japanese Yen"],
-                 ["KRW","South Korean Won"],
-                 ["KWD","Kuwaiti Dinar"],
-                 ["KZT","Kazakhstani Tenge"],
-                 ["LKR","Sri Lankan Rupee"],
-                 ["LYD","Libyan Dinar"],
-                 ["MUR","Mauritian Rupee"],
-                 ["MXN","Mexican Peso"],
-                 ["MYR","Malaysian Ringgit"],
-                 ["NOK","Norwegian Krone"],
-                 ["NPR","Nepalese Rupee"],
-                 ["NZD","New Zealand Dollar"],
-                 ["OMR","Omani Rial"],
-                 ["PHP","Philippine Peso"],
-                 ["PKR","Pakistani Rupee"],
-                 ["PLN","Polish Zloty"],
-                 ["QAR","Qatari Riyal"],
-                 ["RON","Romanian New Leu"],
-                 ["RUB","Russian Ruble"],
-                 ["SAR","Saudi Arabian Riyal"],
-                 ["SEK","Swedish Krona"],
-                 ["SGD","Singapore Dollar"],
-                 ["THB","Thai Baht"],
-                 ["TRY","Turkish Lira"],
-                 ["TTD","Trinidadian Dollar"],
-                 ["TWD","Taiwan New Dollar"],
-                 ["USD","US Dollar"],
-                 ["VEF","Venezuelan Bolivar"],
-                 ["ZAR","South African Rand"]]
-    
-    for curr in curr_list:
-        src = requests.get(f"https://www.x-rates.com/table/?from={curr[0]}&amount=1")
-        soup = bs.BeautifulSoup(src.text, "lxml")
-        table = soup.find("table", {"class": "tablesorter ratesTable"})
-        currs = []
-        
-        for row in table.findAll("tr")[1:]:
-            currency = row.findAll("td")[0].text
-            for abbv in curr_list:
-                if currency==abbv[1]: currency=abbv[0]
-            exchange = row.findAll("td")[1].find('a').contents[0]
-            currs.append([currency,exchange])
+    curr_df = pd.read_csv("currency_dfs/physical_currency_list.csv")
+    curr_list = [[curr_df["abbv"][i], curr_df["currency"][i]] for i in range(len(curr_df))]
 
-        with open(f"currency_dfs/{curr[0]}_exchange.csv","w",encoding="UTF8",newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(["currency", "rate"])
-            for exc in currs:
-                writer.writerow(exc)
+    with open("currency_dfs/AED/fx_daily_AED_ARS.csv",'r') as f:
+        last_line = f.readlines()[-1]
+
+    last_date = last_line.split(',')[0]
+
+    if last_date!=datetime.today():
+        date_list = pd.date_range(datetime.strptime(last_date, '%Y-%m-%d')+timedelta(days=1), datetime.today())
+
+        for day in date_list:
+            for curr in curr_list:
+                src = requests.get(f"https://www.x-rates.com/historical/?from={curr[0]}&amount=1&date={day.strftime('%Y-%m-%d')}")
+                soup = bs.BeautifulSoup(src.text, "lxml")
+                table = soup.find("table", {"class": "tablesorter ratesTable"})
+                currs = []
+
+                if not os.path.exists(f"currency_dfs/{curr[0]}"):
+                    os.makedirs(f"currency_dfs/{curr[0]}")
+        
+                for row in table.findAll("tr")[1:]:
+                    exchange = row.findAll("td")[1].find('a').contents[0]
+                    currs.append([day.strftime('%Y-%m-%d'),exchange])
+
+                for row in currs:
+                    if not os.path.exists(f"currency_dfs/{curr[0]}/fx_daily_{curr[0]}_{row[1]}.csv"):
+                        with open(f"currency_dfs/{curr[0]}/fx_daily_{curr[0]}_{row[1]}.csv","w",encoding="UTF8",newline='') as f:
+                            writer = csv.writer(f)
+                            writer.writerow(["date", "currency", "rate"])
+                            writer.writerow(row)
+                        print(f"W: {day} {curr[0]} {row[1]}")
+                    else:
+                        with open(f"currency_dfs/{curr[0]}/fx_daily_{curr[0]}_{row[1]}.csv","a",encoding="UTF8",newline='') as f:
+                            writer = csv.writer(f)
+                            writer.writerow(row)
+                            f.close()
+                        print(f"A: {day} {curr[0]} {row[1]}")
+    else:
+        print("Today rate has been extracted")
+
 
 save_csv()
