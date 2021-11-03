@@ -12,6 +12,8 @@ def save_csv():
         soup = bs.BeautifulSoup(src.text, "lxml")
         table = soup.find("table", {"class": "tablesorter ratesTable"})
         currs = []
+
+        print(src)
         
         for row in table.findAll("tr")[1:]:
             currency = row.findAll("td")[0].text

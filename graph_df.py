@@ -32,4 +32,7 @@ def graph_df(from_curr, to_curr):
         
     plt.savefig(f"graph_img/{from_curr}/{to_curr}.png")
 
-graph_df("USD","EUR")
+from_curr = input()
+to_curr = input()
+
+graph_df(from_curr, to_curr)
